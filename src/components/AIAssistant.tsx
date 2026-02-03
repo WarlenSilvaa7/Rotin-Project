@@ -1,6 +1,5 @@
-// DEPRECATED: AI assistant removed. This file has been intentionally cleared to remove references to external AI features.
-// If you need this functionality in the future, implement a new component under a different name.
+// DEPRECATED: assistant functionality removed. This file has been intentionally cleared and can be deleted.
 
-export default function AIAssistantPlaceholder() {
+export default function DeprecatedAssistantPlaceholder() {
   return null;
 }

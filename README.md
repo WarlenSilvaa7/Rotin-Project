@@ -1,6 +1,6 @@
-# RotinAI
+# Rotin
 
-RotinAI é um assistente de rotinas pessoais que ajuda a organizar tarefas e blocos de horário.
+Rotin é um gerenciador de rotinas pessoais simples para organizar tarefas e blocos de horário.
 
 ## Desenvolvimento local
 
@@ -18,18 +18,11 @@ npm install
 npm run dev
 ```
 
-## Variáveis de ambiente
-
-A função de geração de rotinas (Supabase Functions) utiliza as seguintes variáveis de ambiente:
-
-- `AI_GATEWAY_API_KEY` — chave da API do provedor de IA (obrigatória)
-- `AI_GATEWAY_URL` — URL do endpoint de geração (opcional; caso não definida, um placeholder é usado)
-
-Configure-as conforme seu provedor de IA preferido.
+> Nota: As funcionalidades de geração automática de rotinas foram removidas deste repositório. Se você dependia de variáveis de ambiente para integração com provedores externos, elas não são mais necessárias.
 
 ## Deploy
 
-Empacote e faça deploy usando a sua plataforma preferida (Vercel, Netlify, Fly, etc.). Configure as variáveis de ambiente no painel da plataforma.
+Empacote e faça deploy usando a sua plataforma preferida (Vercel, Netlify, Fly, etc.).
 
 ---
 

@@ -67,7 +67,7 @@ const initialSchedule: ScheduleItem[] = [
 export default function Index() {
   const [tasks, setTasks] = useState<Task[]>(() => {
     try {
-      const raw = localStorage.getItem("agendai.tasks");
+      const raw = localStorage.getItem("rotin.tasks");
       return raw ? JSON.parse(raw) : initialTasks;
     } catch {
       return initialTasks;
@@ -76,7 +76,7 @@ export default function Index() {
 
   const [schedule, setSchedule] = useState<ScheduleItem[]>(() => {
     try {
-      const raw = localStorage.getItem("agendai.schedule");
+      const raw = localStorage.getItem("rotin.schedule");
       return raw ? JSON.parse(raw) : initialSchedule;
     } catch {
       return initialSchedule;
@@ -159,7 +159,7 @@ export default function Index() {
   // Persist to localStorage
   useEffect(() => {
     try {
-      localStorage.setItem("agendai.tasks", JSON.stringify(tasks));
+      localStorage.setItem("rotin.tasks", JSON.stringify(tasks));
     } catch (e) {
       console.error("Failed to save tasks:", e);
     }
@@ -167,7 +167,7 @@ export default function Index() {
 
   useEffect(() => {
     try {
-      localStorage.setItem("agendai.schedule", JSON.stringify(schedule));
+      localStorage.setItem("rotin.schedule", JSON.stringify(schedule));
     } catch (e) {
       console.error("Failed to save schedule:", e);
     }
@@ -283,7 +283,7 @@ export default function Index() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-display font-bold flex items-center gap-2">
-                <span className="gradient-primary bg-clip-text text-transparent">RotinAI</span>
+                <span className="gradient-primary bg-clip-text text-transparent">Rotin</span>
                 <Sparkles className="h-5 w-5 text-primary" />
               </h1>
               <p className="text-sm text-muted-foreground capitalize">{today}</p>
@@ -417,7 +417,6 @@ export default function Index() {
             </CardContent>
           </Card>
 
-          {/* AI Assistant */}
           <Card className="lg:col-span-1 shadow-card border-primary/20">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-lg font-display">
