@@ -28,6 +28,11 @@ import {
   FileText
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
+import useAuth from "@/hooks/useAuth";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { auth } from "@/lib/firebase";
+import { signOut } from "firebase/auth";
 
 interface Task {
   id: string;
@@ -101,6 +106,7 @@ export default function Index() {
   const [scheduleDialogCategory, setScheduleDialogCategory] = useState<ScheduleItem["category"]>("work");
 
   const { toast } = useToast();
+  const { user, loading, signInWithGoogle, logout } = useAuth();
 
   const resetTaskDialog = () => {
     setTaskDialogTitle("");
@@ -290,9 +296,56 @@ export default function Index() {
             </div>
             <div className="flex items-center gap-2">
               <ThemeToggle />
-              <div className="h-8 w-8 rounded-full gradient-primary flex items-center justify-center text-primary-foreground font-medium text-sm">
-                U
-              </div>
+              {user ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="flex items-center gap-2 rounded-md hover:opacity-90 focus:outline-none">
+                      <Avatar>
+                        <AvatarImage src={user.photoURL ?? undefined} alt={user.displayName ?? "Usuário"} />
+                        <AvatarFallback>{user.displayName?.[0] ?? "U"}</AvatarFallback>
+                      </Avatar>
+                      <span className="hidden md:inline-block ml-2 text-sm">{user.displayName}</span>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <div className="px-3 py-2">
+                      <div className="text-sm font-medium">{user.displayName}</div>
+                      {user.email && <div className="text-xs text-muted-foreground truncate">{user.email}</div>}
+                    </div>
+                    <DropdownMenuItem
+                      onSelect={async (e) => {
+                        e.preventDefault();
+                        try {
+                          await signOut(auth);
+                          toast({ title: "Sessão encerrada" });
+                        } catch (err: any) {
+                          console.error("Erro ao sair", err);
+                          toast({ title: "Erro ao sair", description: err?.message ?? "Falha ao encerrar sessão", variant: "destructive" });
+                        }
+                      }}
+                    >
+                      Sair
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <Button
+                  onClick={async () => {
+                    try {
+                      await signInWithGoogle();
+                      // Se o login for feito via popup, mostra um feedback
+                      toast({ title: "Login efetuado", description: "Bem-vindo!" });
+                    } catch (e: any) {
+                      console.error("Login error", e);
+                      toast({ title: "Erro ao entrar", description: e?.code ?? e?.message ?? "Falha no login", variant: "destructive" });
+                    }
+                  }}
+                  className="gradient-primary"
+                  disabled={loading}
+                >
+                  Entrar com Google
+                </Button>
+              )}
             </div>
           </div>
         </div>
