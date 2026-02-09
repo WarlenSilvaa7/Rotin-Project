@@ -4,15 +4,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FileText, Plus, Trash2, Loader2, Check } from "lucide-react";
+import { fetchNotes, saveNotes, Subject } from "@/lib/api";
 
-type Subject = {
-  id: string;
-  title: string; // may include emoji
-  content: string;
-  updatedAt: number;
-};
-
-const STORAGE_KEY = "subject-notes.v1";
 function now() {
   return Date.now();
 }
@@ -24,33 +17,43 @@ interface SubjectNotesProps {
   date: string;
 }
 
-const BASE_STORAGE_KEY = "subject-notes.v1";
 const BASE_ACTIVE_KEY = "subject-notes.active";
 
-// Minimalist Subject Notes manager. Uses plain JS (localStorage, DOM interactions via React refs)
+// Minimalist Subject Notes manager. Uses API to sync data
 export default function SubjectNotes({ date }: SubjectNotesProps) {
-  const storageKey = `${BASE_STORAGE_KEY}.${date}`;
   const activeKey = `${BASE_ACTIVE_KEY}.${date}`;
 
-  const [subjects, setSubjects] = useState<Subject[]>(() => {
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (!raw) {
-        // Try to load from the legacy key if this is the first time and we want to preserve old notes
-        // For now, let's strictly imply "new day, new notes", but we use the default subjects.
-        return [
-          { id: generateId(), title: "🇧🇷 Língua Portuguesa", content: "", updatedAt: now() },
-          { id: generateId(), title: "⚖️ Direito", content: "", updatedAt: now() },
-        ];
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+
+  // Load from API on mount or date change
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      try {
+        const data = await fetchNotes(date);
+        if (mounted) {
+          if (data && data.length > 0) {
+            setSubjects(data);
+          } else {
+            // Default subjects for new day if empty
+            // Verify if we should create them on backend immediately or just local state?
+            // Let's just set local state. User needs to interact to save?
+            // Or better: load default if empty FROM BACKEND? 
+            // The backend returns empty list if not found.
+            // Let's emulate the previous behavior: default items.
+            setSubjects([
+              { id: generateId(), title: "🇧🇷 Língua Portuguesa", content: "", updatedAt: now() },
+              { id: generateId(), title: "⚖️ Direito", content: "", updatedAt: now() },
+            ]);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load notes", e);
       }
-      return JSON.parse(raw) as Subject[];
-    } catch (e) {
-      return [
-        { id: generateId(), title: "🇧🇷 Língua Portuguesa", content: "", updatedAt: now() },
-        { id: generateId(), title: "⚖️ Direito", content: "", updatedAt: now() },
-      ];
-    }
-  });
+    };
+    load();
+    return () => { mounted = false; };
+  }, [date]);
 
   const [activeId, setActiveId] = useState<string | null>(() => {
     try {
@@ -97,7 +100,7 @@ export default function SubjectNotes({ date }: SubjectNotesProps) {
     setIsCreateOpen(true);
   };
 
-  const handleCreateSubmit = () => {
+  const handleCreateSubmit = async () => {
     const title = (newEmoji ? `${newEmoji} ` : "") + newTitle.trim();
     if (!newTitle.trim()) return;
     const s: Subject = { id: generateId(), title, content: "", updatedAt: now() };
@@ -105,7 +108,17 @@ export default function SubjectNotes({ date }: SubjectNotesProps) {
     setSubjects(next);
     setActiveId(s.id);
     setIsCreateOpen(false);
-    try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch { }
+
+    // Save to API
+    try {
+      setIsSaving(true);
+      await saveNotes(date, next);
+      setLastSavedAt(now());
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const openEdit = (id: string) => {
@@ -117,10 +130,18 @@ export default function SubjectNotes({ date }: SubjectNotesProps) {
     setIsEditOpen(true);
   };
 
-  const saveEditNow = (id: string) => {
+  const saveEditNow = async (id: string) => {
     const next = subjectsRef.current.map((s) => (s.id === id ? { ...s, content: editContent, updatedAt: now() } : s));
     setSubjects(next);
-    try { localStorage.setItem(storageKey, JSON.stringify(next)); setLastSavedAt(now()); } catch { }
+    try {
+      setIsSaving(true);
+      await saveNotes(date, next);
+      setLastSavedAt(now());
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleEditClose = () => {
@@ -134,22 +155,38 @@ export default function SubjectNotes({ date }: SubjectNotesProps) {
     setEditContent("");
   };
 
-  const renameSubject = (id: string) => {
+  const renameSubject = async (id: string) => {
     const sub = subjects.find((x) => x.id === id);
     if (!sub) return;
     const title = prompt("Renomear assunto (inclua emoji se desejar)", sub.title)?.trim();
     if (!title) return;
     const next = subjects.map((x) => (x.id === id ? { ...x, title, updatedAt: now() } : x));
     setSubjects(next);
-    try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch { }
+
+    try {
+      setIsSaving(true);
+      await saveNotes(date, next);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const deleteSubject = (id: string) => {
+  const deleteSubject = async (id: string) => {
     if (!confirm("Remover assunto e todas as suas notas?")) return;
     const next = subjects.filter((s) => s.id !== id);
     setSubjects(next);
     if (activeId === id) setActiveId(next[0]?.id || null);
-    try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch { }
+
+    try {
+      setIsSaving(true);
+      await saveNotes(date, next);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Save content for subject with debounce
@@ -158,9 +195,9 @@ export default function SubjectNotes({ date }: SubjectNotesProps) {
     setSubjects(next);
     setIsSaving(true);
     if (timerRef.current) window.clearTimeout(timerRef.current);
-    timerRef.current = window.setTimeout(() => {
+    timerRef.current = window.setTimeout(async () => {
       try {
-        localStorage.setItem(storageKey, JSON.stringify(next));
+        await saveNotes(date, next);
         setLastSavedAt(now());
       } catch (e) {
         // noop

@@ -34,61 +34,47 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
+import {
+  fetchTasks,
+  createTask,
+  updateTask as apiUpdateTask,
+  deleteTask as apiDeleteTask,
+  fetchSchedule,
+  createScheduleItem,
+  updateScheduleItem as apiUpdateScheduleItem,
+  deleteScheduleItem as apiDeleteScheduleItem,
+  Task as ApiTask,
+  ScheduleItem as ApiScheduleItem
+} from "@/lib/api";
 
-interface Task {
-  id: string;
-  title: string;
-  completed: boolean;
-  time?: string;
-  day?: string; // YYYY-MM-DD
-}
-
-interface ScheduleItem {
-  id: string;
-  time: string;
-  title: string;
-  duration: string;
-  category: "work" | "personal" | "health" | "learning";
-  completed?: boolean;
-  day?: string; // YYYY-MM-DD
-}
+interface Task extends ApiTask { }
+interface ScheduleItem extends ApiScheduleItem { }
 
 const today = new Date();
 const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
-const initialTasks: Task[] = [
-  { id: "1", title: "Revisar emails importantes", completed: false, time: "09:00", day: todayISO },
-  { id: "2", title: "Reunião de planejamento", completed: true, time: "10:00", day: todayISO },
-  { id: "3", title: "Exercícios de alongamento", completed: false, time: "12:00", day: todayISO },
-  { id: "4", title: "Estudar novo framework", completed: false, time: "14:00", day: todayISO },
-];
-
-const initialSchedule: ScheduleItem[] = [
-  { id: "1", time: "08:00", title: "Rotina matinal", duration: "45min", category: "personal", completed: false, day: todayISO },
-  { id: "2", time: "09:00", title: "Bloco de foco - Trabalho", duration: "2h", category: "work", completed: false, day: todayISO },
-  { id: "3", time: "12:00", title: "Almoço + Descanso", duration: "1h", category: "personal", completed: false, day: todayISO },
-  { id: "4", time: "14:00", title: "Aprendizado", duration: "1h", category: "learning", completed: false, day: todayISO },
-  { id: "5", time: "17:00", title: "Exercícios físicos", duration: "1h", category: "health", completed: false, day: todayISO },
-];
-
 export default function Index() {
-  const [tasks, setTasks] = useState<Task[]>(() => {
-    try {
-      const raw = localStorage.getItem("rotin.tasks");
-      return raw ? JSON.parse(raw) : initialTasks;
-    } catch {
-      return initialTasks;
-    }
-  });
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
+  const { toast } = useToast();
 
-  const [schedule, setSchedule] = useState<ScheduleItem[]>(() => {
-    try {
-      const raw = localStorage.getItem("rotin.schedule");
-      return raw ? JSON.parse(raw) : initialSchedule;
-    } catch {
-      return initialSchedule;
-    }
-  });
+  // Carregar dados do backend ao iniciar
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [loadedTasks, loadedSchedule] = await Promise.all([
+          fetchTasks(),
+          fetchSchedule()
+        ]);
+        setTasks(loadedTasks);
+        setSchedule(loadedSchedule);
+      } catch (error) {
+        console.error("Erro ao carregar dados:", error);
+        toast({ title: "Erro de conexão", description: "Não foi possível carregar os dados do servidor.", variant: "destructive" });
+      }
+    };
+    loadData();
+  }, [toast]);
 
   const [newTask, setNewTask] = useState("");
   const [selectedDay, setSelectedDay] = useState<string>(todayISO);
@@ -118,7 +104,6 @@ export default function Index() {
     return () => clearInterval(timer);
   }, []);
 
-  const { toast } = useToast();
   const { user, loading, signInWithGoogle, logout } = useAuth();
 
   const resetTaskDialog = () => {
@@ -133,7 +118,7 @@ export default function Index() {
     setScheduleDialogCategory("work");
   };
 
-  const handleCreateTaskFromDialog = () => {
+  const handleCreateTaskFromDialog = async () => {
     if (!taskDialogTitle.trim()) {
       toast({ title: "Erro", description: "Informe o assunto da tarefa", variant: "destructive" });
       return;
@@ -147,13 +132,18 @@ export default function Index() {
       day: selectedDay,
     };
 
-    setTasks((prev) => [...prev, task]);
-    setIsTaskDialogOpen(false);
-    resetTaskDialog();
-    toast({ title: "Tarefa criada", description: "Tarefa adicionada com sucesso" });
+    try {
+      const createdTask = await createTask(task);
+      setTasks((prev) => [...prev, createdTask]);
+      setIsTaskDialogOpen(false);
+      resetTaskDialog();
+      toast({ title: "Tarefa criada", description: "Tarefa adicionada com sucesso" });
+    } catch (e) {
+      toast({ title: "Erro", description: "Falha ao criar tarefa", variant: "destructive" });
+    }
   };
 
-  const handleCreateScheduleFromDialog = () => {
+  const handleCreateScheduleFromDialog = async () => {
     if (!scheduleDialogTitle.trim()) {
       toast({ title: "Erro", description: "Informe o assunto do bloco", variant: "destructive" });
       return;
@@ -169,28 +159,16 @@ export default function Index() {
       day: selectedDay,
     };
 
-    setSchedule((prev) => [...prev, item]);
-    setIsScheduleDialogOpen(false);
-    resetScheduleDialog();
-    toast({ title: "Bloco criado", description: "Cronograma atualizado" });
+    try {
+      const createdItem = await createScheduleItem(item);
+      setSchedule((prev) => [...prev, createdItem]);
+      setIsScheduleDialogOpen(false);
+      resetScheduleDialog();
+      toast({ title: "Bloco criado", description: "Cronograma atualizado" });
+    } catch (e) {
+      toast({ title: "Erro", description: "Falha ao criar bloco", variant: "destructive" });
+    }
   };
-
-  // Persist to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem("rotin.tasks", JSON.stringify(tasks));
-    } catch (e) {
-      console.error("Failed to save tasks:", e);
-    }
-  }, [tasks]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("rotin.schedule", JSON.stringify(schedule));
-    } catch (e) {
-      console.error("Failed to save schedule:", e);
-    }
-  }, [schedule]);
 
   // Filter by selected date
   const filteredSchedule = schedule.filter((s) => s.day === selectedDay || !s.day);
@@ -223,14 +201,31 @@ export default function Index() {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
 
-  const handleToggleTask = (id: string) => {
-    setTasks((prev) =>
-      prev.map((task) => (task.id === id ? { ...task, completed: !task.completed } : task))
-    );
+  const handleToggleTask = async (id: string) => {
+    const task = tasks.find((t) => t.id === id);
+    if (!task) return;
+    const updated = { ...task, completed: !task.completed };
+
+    // Optimistic
+    setTasks((prev) => prev.map((t) => (t.id === id ? updated : t)));
+
+    try {
+      await apiUpdateTask(id, updated);
+    } catch (e) {
+      setTasks((prev) => prev.map((t) => (t.id === id ? task : t)));
+      toast({ title: "Erro", description: "Falha ao atualizar tarefa", variant: "destructive" });
+    }
   };
 
-  const handleDeleteTask = (id: string) => {
+  const handleDeleteTask = async (id: string) => {
+    const oldTasks = tasks;
     setTasks((prev) => prev.filter((task) => task.id !== id));
+    try {
+      await apiDeleteTask(id);
+    } catch (e) {
+      setTasks(oldTasks);
+      toast({ title: "Erro", description: "Falha ao excluir tarefa", variant: "destructive" });
+    }
   };
 
   const handleOpenEditTask = (id: string) => {
@@ -242,18 +237,26 @@ export default function Index() {
     setIsTaskDialogOpen(true);
   };
 
-  const handleSaveEditedTask = () => {
+  const handleSaveEditedTask = async () => {
     if (!editingTaskId) return;
-    setTasks((prev) =>
-      prev.map((t) => (t.id === editingTaskId ? { ...t, title: taskDialogTitle.trim() || t.title, time: taskDialogTime || t.time } : t))
-    );
-    setIsTaskDialogOpen(false);
-    resetTaskDialog();
-    setEditingTaskId(null);
-    toast({ title: "Tarefa atualizada" });
+    const task = tasks.find((t) => t.id === editingTaskId);
+    if (!task) return;
+
+    const updated = { ...task, title: taskDialogTitle.trim() || task.title, time: taskDialogTime || task.time };
+
+    try {
+      await apiUpdateTask(editingTaskId, updated);
+      setTasks((prev) => prev.map((t) => (t.id === editingTaskId ? updated : t)));
+      setIsTaskDialogOpen(false);
+      resetTaskDialog();
+      setEditingTaskId(null);
+      toast({ title: "Tarefa atualizada" });
+    } catch (e) {
+      toast({ title: "Erro", description: "Falha ao salvar edição", variant: "destructive" });
+    }
   };
 
-  const handleAddTask = () => {
+  const handleAddTask = async () => {
     if (newTask.trim()) {
       const task: Task = {
         id: Date.now().toString(),
@@ -261,8 +264,14 @@ export default function Index() {
         completed: false,
         day: selectedDay,
       };
-      setTasks((prev) => [...prev, task]);
-      setNewTask("");
+
+      try {
+        const created = await createTask(task);
+        setTasks((prev) => [...prev, created]);
+        setNewTask("");
+      } catch (e) {
+        toast({ title: "Erro", description: "Falha ao adicionar tarefa", variant: "destructive" });
+      }
     }
   };
 
@@ -278,29 +287,59 @@ export default function Index() {
     setIsScheduleDialogOpen(true);
   };
 
-  const handleSaveEditedSchedule = () => {
+  const handleSaveEditedSchedule = async () => {
     if (!editingScheduleId) return;
-    setSchedule((prev) =>
-      prev.map((s) =>
-        s.id === editingScheduleId
-          ? { ...s, title: scheduleDialogTitle.trim() || s.title, time: scheduleDialogTime || s.time, duration: scheduleDialogDuration || s.duration, category: scheduleDialogCategory }
-          : s
-      )
-    );
-    setIsScheduleDialogOpen(false);
-    resetScheduleDialog();
-    setEditingScheduleId(null);
-    toast({ title: "Bloco atualizado" });
+    const item = schedule.find((s) => s.id === editingScheduleId);
+    if (!item) return;
+
+    const updated = {
+      ...item,
+      title: scheduleDialogTitle.trim() || item.title,
+      time: scheduleDialogTime || item.time,
+      duration: scheduleDialogDuration || item.duration,
+      category: scheduleDialogCategory
+    };
+
+    try {
+      await apiUpdateScheduleItem(editingScheduleId, updated);
+      setSchedule((prev) => prev.map((s) => (s.id === editingScheduleId ? updated : s)));
+      setIsScheduleDialogOpen(false);
+      resetScheduleDialog();
+      setEditingScheduleId(null);
+      toast({ title: "Bloco atualizado" });
+    } catch (e) {
+      toast({ title: "Erro", description: "Falha ao atualizar bloco", variant: "destructive" });
+    }
   };
 
-  const handleDeleteSchedule = (id?: string) => {
+  const handleDeleteSchedule = async (id?: string) => {
     if (!id) return;
+    const oldSchedule = schedule;
     setSchedule((prev) => prev.filter((s) => s.id !== id));
+    try {
+      await apiDeleteScheduleItem(id);
+    } catch (e) {
+      setSchedule(oldSchedule);
+      toast({ title: "Erro", description: "Falha ao excluir bloco", variant: "destructive" });
+    }
   };
 
-  const handleToggleSchedule = (id?: string) => {
+  const handleToggleSchedule = async (id?: string) => {
     if (!id) return;
-    setSchedule((prev) => prev.map((s) => (s.id === id ? { ...s, completed: !s.completed } : s)));
+    const item = schedule.find((s) => s.id === id);
+    if (!item) return;
+
+    const updated = { ...item, completed: !item.completed };
+
+    // Optimistic
+    setSchedule((prev) => prev.map((s) => (s.id === id ? updated : s)));
+
+    try {
+      await apiUpdateScheduleItem(id, updated);
+    } catch (e) {
+      setSchedule((prev) => prev.map((s) => (s.id === id ? item : s)));
+      toast({ title: "Erro", description: "Falha ao atualizar bloco", variant: "destructive" });
+    }
   };
 
 
