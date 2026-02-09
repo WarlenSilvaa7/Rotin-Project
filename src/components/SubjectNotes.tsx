@@ -13,8 +13,6 @@ type Subject = {
 };
 
 const STORAGE_KEY = "subject-notes.v1";
-const ACTIVE_KEY = "subject-notes.active";
-
 function now() {
   return Date.now();
 }
@@ -22,15 +20,29 @@ function generateId() {
   return Math.random().toString(36).slice(2, 9);
 }
 
+interface SubjectNotesProps {
+  date: string;
+}
+
+const BASE_STORAGE_KEY = "subject-notes.v1";
+const BASE_ACTIVE_KEY = "subject-notes.active";
+
 // Minimalist Subject Notes manager. Uses plain JS (localStorage, DOM interactions via React refs)
-export default function SubjectNotes() {
+export default function SubjectNotes({ date }: SubjectNotesProps) {
+  const storageKey = `${BASE_STORAGE_KEY}.${date}`;
+  const activeKey = `${BASE_ACTIVE_KEY}.${date}`;
+
   const [subjects, setSubjects] = useState<Subject[]>(() => {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return [
-        { id: generateId(), title: "🇧🇷 Língua Portuguesa", content: "", updatedAt: now() },
-        { id: generateId(), title: "⚖️ Direito", content: "", updatedAt: now() },
-      ];
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) {
+        // Try to load from the legacy key if this is the first time and we want to preserve old notes
+        // For now, let's strictly imply "new day, new notes", but we use the default subjects.
+        return [
+          { id: generateId(), title: "🇧🇷 Língua Portuguesa", content: "", updatedAt: now() },
+          { id: generateId(), title: "⚖️ Direito", content: "", updatedAt: now() },
+        ];
+      }
       return JSON.parse(raw) as Subject[];
     } catch (e) {
       return [
@@ -42,7 +54,7 @@ export default function SubjectNotes() {
 
   const [activeId, setActiveId] = useState<string | null>(() => {
     try {
-      return localStorage.getItem(ACTIVE_KEY) || null;
+      return localStorage.getItem(activeKey) || null;
     } catch {
       return null;
     }
@@ -63,9 +75,9 @@ export default function SubjectNotes() {
 
   useEffect(() => {
     try {
-      if (activeId) localStorage.setItem(ACTIVE_KEY, activeId);
-    } catch {}
-  }, [activeId]);
+      if (activeId) localStorage.setItem(activeKey, activeId);
+    } catch { }
+  }, [activeId, activeKey]);
 
   const active = subjects.find((s) => s.id === activeId) || subjects[0] || null;
 
@@ -93,7 +105,7 @@ export default function SubjectNotes() {
     setSubjects(next);
     setActiveId(s.id);
     setIsCreateOpen(false);
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
+    try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch { }
   };
 
   const openEdit = (id: string) => {
@@ -108,7 +120,7 @@ export default function SubjectNotes() {
   const saveEditNow = (id: string) => {
     const next = subjectsRef.current.map((s) => (s.id === id ? { ...s, content: editContent, updatedAt: now() } : s));
     setSubjects(next);
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); setLastSavedAt(now()); } catch {}
+    try { localStorage.setItem(storageKey, JSON.stringify(next)); setLastSavedAt(now()); } catch { }
   };
 
   const handleEditClose = () => {
@@ -129,7 +141,7 @@ export default function SubjectNotes() {
     if (!title) return;
     const next = subjects.map((x) => (x.id === id ? { ...x, title, updatedAt: now() } : x));
     setSubjects(next);
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
+    try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch { }
   };
 
   const deleteSubject = (id: string) => {
@@ -137,7 +149,7 @@ export default function SubjectNotes() {
     const next = subjects.filter((s) => s.id !== id);
     setSubjects(next);
     if (activeId === id) setActiveId(next[0]?.id || null);
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
+    try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch { }
   };
 
   // Save content for subject with debounce
@@ -148,7 +160,7 @@ export default function SubjectNotes() {
     if (timerRef.current) window.clearTimeout(timerRef.current);
     timerRef.current = window.setTimeout(() => {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        localStorage.setItem(storageKey, JSON.stringify(next));
         setLastSavedAt(now());
       } catch (e) {
         // noop

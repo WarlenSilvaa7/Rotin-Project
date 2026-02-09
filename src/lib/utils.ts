@@ -10,6 +10,10 @@ export interface StreakItem {
   completed?: boolean;
 }
 
+export function getLocalISOString(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export function calculateCurrentStreak(tasks: StreakItem[], schedule: StreakItem[]): number {
   // Combine all items
   const allItems = [...tasks, ...schedule];
@@ -38,7 +42,7 @@ export function calculateCurrentStreak(tasks: StreakItem[], schedule: StreakItem
 
   // Check if today adds to the streak
   // If today is perfect (all done), count it.
-  const todayISO = today.toISOString().slice(0, 10);
+  const todayISO = getLocalISOString(today);
   const todayStats = dailyStats[todayISO];
 
   if (todayStats && todayStats.total > 0 && todayStats.total === todayStats.completed) {
@@ -53,7 +57,7 @@ export function calculateCurrentStreak(tasks: StreakItem[], schedule: StreakItem
   checkDate.setDate(checkDate.getDate() - 1);
 
   while (true) {
-    const iso = checkDate.toISOString().slice(0, 10);
+    const iso = getLocalISOString(checkDate);
     const stats = dailyStats[iso];
 
     if (stats && stats.total > 0 && stats.total === stats.completed) {

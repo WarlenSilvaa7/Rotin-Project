@@ -53,7 +53,8 @@ interface ScheduleItem {
   day?: string; // YYYY-MM-DD
 }
 
-const todayISO = new Date().toISOString().slice(0, 10);
+const today = new Date();
+const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
 const initialTasks: Task[] = [
   { id: "1", title: "Revisar emails importantes", completed: false, time: "09:00", day: todayISO },
@@ -304,7 +305,8 @@ export default function Index() {
 
 
 
-  const today = new Date(selectedDay).toLocaleDateString("pt-BR", {
+  const [year, month, day] = selectedDay.split('-').map(Number);
+  const today = new Date(year, month - 1, day).toLocaleDateString("pt-BR", {
     weekday: "long",
     day: "numeric",
     month: "long",
@@ -505,11 +507,11 @@ export default function Index() {
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-lg font-display">
                 <FileText className="h-5 w-5 text-primary" />
-                Gestor de Notas por Assunto
+                Bloco de Notas
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <SubjectNotes />
+              <SubjectNotes date={selectedDay} key={selectedDay} />
             </CardContent>
           </Card>
         </div>

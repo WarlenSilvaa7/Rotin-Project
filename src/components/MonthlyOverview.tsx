@@ -35,7 +35,7 @@ export function MonthlyOverview({ stats, tasks = [], schedule = [] }: MonthlyOve
   const calendarDays = Array.from({ length: daysInMonth }, (_, i) => {
     const dayNumber = i + 1;
     const date = new Date(year, month, dayNumber);
-    const iso = date.toISOString().slice(0, 10);
+    const iso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
     const isToday = dayNumber === today.getDate();
 
     const tasksForDay = tasks.filter((t) => t.day === iso);
